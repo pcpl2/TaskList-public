@@ -1,0 +1,9 @@
+<resources>
+    <string name="app_name">Task list</string>
+    <string name="login_with_google">Login with Google+</string>
+    <string name="loging_text">Logging in…</string>
+    <string name="login_header">Login</string>
+    <string name="add_button">Add</string>
+    <string name="task_name_hint">Task Name</string>
+    <string name="no_tasks">No Tasks</string>
+</resources>
