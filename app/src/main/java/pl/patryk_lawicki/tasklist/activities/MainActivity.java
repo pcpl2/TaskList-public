@@ -8,6 +8,7 @@ import android.support.v7.widget.RecyclerView;
 import android.support.v7.widget.Toolbar;
 import android.text.Editable;
 import android.text.TextWatcher;
+import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.widget.Button;
@@ -17,13 +18,6 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.google.firebase.auth.FirebaseAuth;
-import com.google.firebase.auth.FirebaseUser;
-import com.google.firebase.database.ChildEventListener;
-import com.google.firebase.database.DataSnapshot;
-import com.google.firebase.database.DatabaseError;
-import com.google.firebase.database.DatabaseReference;
-import com.google.firebase.database.FirebaseDatabase;
-import com.google.firebase.database.ValueEventListener;
 
 import org.joda.time.DateTime;
 
@@ -31,6 +25,10 @@ import io.reactivex.Observable;
 
 import pl.patryk_lawicki.tasklist.R;
 import pl.patryk_lawicki.tasklist.adapters.TaskAdapter;
+import pl.patryk_lawicki.tasklist.firebaseClasess.FirebaseTasks;
+import pl.patryk_lawicki.tasklist.listeners.FirebaseChangeTaskListener;
+import pl.patryk_lawicki.tasklist.listeners.FirebaseLoadTasksCountListener;
+import pl.patryk_lawicki.tasklist.listeners.FirebaseLoadTasksEventListener;
 import pl.patryk_lawicki.tasklist.models.Task;
 
 public class MainActivity extends AppCompatActivity {
@@ -38,9 +36,7 @@ public class MainActivity extends AppCompatActivity {
     private String TAG = MainActivity.class.getSimpleName();
 
     private FirebaseAuth firebaseAuth = FirebaseAuth.getInstance();
-    private FirebaseUser firebaseUser = firebaseAuth.getCurrentUser();
-
-    private DatabaseReference tasksReference = FirebaseDatabase.getInstance().getReference("Tasks").child(firebaseUser.getUid());
+    private FirebaseTasks firebaseTasks = FirebaseTasks.getInstance();
 
     private TaskAdapter taskAdapter;
 
@@ -103,85 +99,83 @@ public class MainActivity extends AppCompatActivity {
         taskListView.setAdapter(taskAdapter);
 
         /* Run getting data from database */
-        getTasksFromFirebase();
+        getTasksRemote();
 
         /* Handle add task button */
         addTaskButton.setOnClickListener(v -> {
             taskNameInput.setEnabled(false);
             addTaskButton.setEnabled(false);
-            String taskId = tasksReference.push().getKey();
             Task task = new Task(false, taskNameInput.getText().toString(), DateTime.now().getMillis());
-            tasksReference.child(taskId).setValue(task).addOnCompleteListener(task1 -> {
-                taskNameInput.setText("");
-                taskNameInput.setEnabled(true);
-            }).addOnFailureListener(e -> {
-                taskNameInput.setEnabled(true);
-                addTaskButton.setEnabled(true);
-                Toast.makeText(getApplicationContext(), e.getMessage(), Toast.LENGTH_LONG).show();
+            task.setUid(firebaseTasks.generateTaskId());
+
+            firebaseTasks.addTask(task, new FirebaseChangeTaskListener() {
+                @Override
+                public void onComplete() {
+                    taskNameInput.setText("");
+                    taskNameInput.setEnabled(true);
+                }
+
+                @Override
+                public void onError(String message) {
+                    taskNameInput.setEnabled(true);
+                    addTaskButton.setEnabled(true);
+                    Toast.makeText(getApplicationContext(), message, Toast.LENGTH_LONG).show();
+                }
             });
         });
     }
 
     /**
-     * Function to get and update data in list as firebase database.
+     * Function to get and update data in list on database.
      */
-    private void getTasksFromFirebase() {
-        tasksReference.addValueEventListener(new ValueEventListener() {
+    private void getTasksRemote() {
+        firebaseTasks.loadTasksCountDynamic(new FirebaseLoadTasksCountListener() {
             @Override
-            public void onDataChange(DataSnapshot dataSnapshot) {
-                if (dataSnapshot.getChildrenCount() < 1) {
+            public void onComplete(long count) {
+                if(count < 1) {
                     noTaskVisibility();
                 }
             }
 
             @Override
-            public void onCancelled(DatabaseError databaseError) {
+            public void onError(String message) {
                 noTaskVisibility();
+                Log.e(TAG, message);
             }
         });
 
-        tasksReference.addChildEventListener(new ChildEventListener() {
+        firebaseTasks.loadTasksEventDynamic(new FirebaseLoadTasksEventListener() {
             @Override
-            public void onChildAdded(DataSnapshot dataSnapshot, String prevChildKey) {
-                if (dataSnapshot.exists()) {
-                    Task task = dataSnapshot.getValue(Task.class);
-                    task.setUid(dataSnapshot.getKey());
-                    taskAdapter.addTask(task);
-                }
+            public void onTaskAdded(Task task, String prevTaskUid) {
+                taskAdapter.addTask(task);
                 if ((!listVisibility) && (taskAdapter.getItemCount() > 0)) {
                     listVisibility();
                 }
             }
 
             @Override
-            public void onChildChanged(DataSnapshot dataSnapshot, String prevChildKey) {
-                if (dataSnapshot.exists()) {
-                    Task task = dataSnapshot.getValue(Task.class);
-                    task.setUid(dataSnapshot.getKey());
-                    taskAdapter.updateTask(task);
-                }
+            public void onTaskChanged(Task task, String prevTaskUid) {
+                taskAdapter.updateTask(task);
             }
 
             @Override
-            public void onChildRemoved(DataSnapshot dataSnapshot) {
-                if (dataSnapshot.exists()) {
-                    Task task = dataSnapshot.getValue(Task.class);
-                    task.setUid(dataSnapshot.getKey());
-                    taskAdapter.removeTask(task);
-                }
+            public void onTaskRemoved(Task task) {
 
+                taskAdapter.removeTask(task);
                 if ((listVisibility) && (taskAdapter.getItemCount() == 0)) {
                     noTaskVisibility();
                 }
             }
 
             @Override
-            public void onChildMoved(DataSnapshot dataSnapshot, String prevChildKey) {
+            public void onTaskMoved(Task task, String prevTaskUid) {
+
             }
 
             @Override
-            public void onCancelled(DatabaseError databaseError) {
+            public void onError(String message) {
                 noTaskVisibility();
+                Log.e(TAG, message);
             }
         });
     }

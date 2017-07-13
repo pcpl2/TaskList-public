@@ -7,12 +7,9 @@ import android.widget.CheckBox;
 import android.widget.ImageButton;
 import android.widget.TextView;
 
-import com.google.firebase.auth.FirebaseAuth;
-import com.google.firebase.auth.FirebaseUser;
-import com.google.firebase.database.DatabaseReference;
-import com.google.firebase.database.FirebaseDatabase;
-
 import pl.patryk_lawicki.tasklist.R;
+import pl.patryk_lawicki.tasklist.firebaseClasess.FirebaseTasks;
+import pl.patryk_lawicki.tasklist.listeners.FirebaseChangeTaskListener;
 import pl.patryk_lawicki.tasklist.models.Task;
 
 /**
@@ -21,10 +18,7 @@ import pl.patryk_lawicki.tasklist.models.Task;
 
 public class TaskViewHolder extends RecyclerView.ViewHolder {
 
-    private FirebaseAuth firebaseAuth = FirebaseAuth.getInstance();
-    private FirebaseUser firebaseUser = firebaseAuth.getCurrentUser();
-
-    private DatabaseReference tasksReference = FirebaseDatabase.getInstance().getReference("Tasks").child(firebaseUser.getUid());
+    private FirebaseTasks firebaseTasks = FirebaseTasks.getInstance();
 
     private CheckBox complete;
     private TextView name;
@@ -41,18 +35,34 @@ public class TaskViewHolder extends RecyclerView.ViewHolder {
         complete.setChecked(task.isComplete());
 
         complete.setOnClickListener(v -> {
-            CheckBox checkBox = (CheckBox)v;
+            CheckBox checkBox = (CheckBox) v;
             task.setComplete(checkBox.isChecked());
             setCompleteName(checkBox.isChecked());
-            tasksReference.child(task.getUid()).setValue(task).addOnFailureListener(e -> {
-                complete.setChecked(!checkBox.isChecked());
-                setCompleteName(complete.isChecked());
+            firebaseTasks.updateTask(task, new FirebaseChangeTaskListener() {
+                @Override
+                public void onComplete() {
+
+                }
+
+                @Override
+                public void onError(String message) {
+                    complete.setChecked(!checkBox.isChecked());
+                    setCompleteName(complete.isChecked());
+                }
             });
         });
 
         name.setText(task.getName());
         setCompleteName(task.isComplete());
-        delete.setOnClickListener(v -> tasksReference.child(task.getUid()).removeValue());
+        delete.setOnClickListener(v -> firebaseTasks.updateTask(task, new FirebaseChangeTaskListener() {
+            @Override
+            public void onComplete() {
+            }
+
+            @Override
+            public void onError(String message) {
+            }
+        }));
     }
 
     private void setCompleteName(boolean complete) {
