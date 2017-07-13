@@ -1,9 +1,7 @@
 package pl.patryk_lawicki.tasklist.firebaseClasess;
 
-import android.support.annotation.NonNull;
 import android.util.Log;
 
-import com.google.android.gms.tasks.OnFailureListener;
 import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
@@ -19,7 +17,7 @@ import pl.patryk_lawicki.tasklist.models.User;
  */
 
 public class FirebaseUsers {
-    private static final String TAG = "FirebaseUsersSupport";
+    private static final String TAG = FirebaseUsers.class.getSimpleName();
 
     private DatabaseReference usersReference = FirebaseDatabase.getInstance().getReference("Users");
 
@@ -40,10 +38,14 @@ public class FirebaseUsers {
                 public void onDataChange(DataSnapshot dataSnapshot) {
                     if (dataSnapshot.exists()) {
                         User user = dataSnapshot.getValue(User.class);
-                        user.setUid(dataSnapshot.getKey());
+                        if(user != null) {
+                            user.setUid(dataSnapshot.getKey());
 
-                        if (firebaseLoadUserListener != null) {
-                            firebaseLoadUserListener.onCompleteExist(user);
+                            if (firebaseLoadUserListener != null) {
+                                firebaseLoadUserListener.onCompleteExist(user);
+                            }
+                        } else {
+                            firebaseLoadUserListener.onError("Unknown error.");
                         }
                     } else {
                         if (firebaseLoadUserListener != null) {
@@ -73,6 +75,5 @@ public class FirebaseUsers {
                 firebaseAddUserListener.onError(e.getMessage());
             }
         });
-
     }
 }

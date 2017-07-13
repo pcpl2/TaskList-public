@@ -18,8 +18,6 @@ import com.google.firebase.auth.AuthCredential;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.auth.GoogleAuthProvider;
-import com.google.firebase.database.DatabaseReference;
-import com.google.firebase.database.FirebaseDatabase;
 
 import pl.patryk_lawicki.tasklist.R;
 import pl.patryk_lawicki.tasklist.firebaseClasess.FirebaseUsers;
@@ -33,8 +31,6 @@ public class LoginActivity extends AppCompatActivity {
 
     private FirebaseAuth firebaseAuth = FirebaseAuth.getInstance();
     private FirebaseUser firebaseUser = firebaseAuth.getCurrentUser();
-
-    private DatabaseReference userReference = FirebaseDatabase.getInstance().getReference("Users");
 
     private static final int RC_SIGN_IN = 9001;
     private GoogleApiClient googleApiClient;
