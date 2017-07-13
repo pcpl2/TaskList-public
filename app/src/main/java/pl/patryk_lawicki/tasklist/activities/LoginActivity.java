@@ -18,13 +18,13 @@ import com.google.firebase.auth.AuthCredential;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.auth.GoogleAuthProvider;
-import com.google.firebase.database.DataSnapshot;
-import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
-import com.google.firebase.database.ValueEventListener;
 
 import pl.patryk_lawicki.tasklist.R;
+import pl.patryk_lawicki.tasklist.firebaseClasess.FirebaseUsers;
+import pl.patryk_lawicki.tasklist.listeners.FirebaseAddUserListener;
+import pl.patryk_lawicki.tasklist.listeners.FirebaseLoadUserListener;
 import pl.patryk_lawicki.tasklist.models.User;
 
 public class LoginActivity extends AppCompatActivity {
@@ -40,7 +40,7 @@ public class LoginActivity extends AppCompatActivity {
     private GoogleApiClient googleApiClient;
 
     private ProgressBar progressBar;
-    private TextView lgonInText;
+    private TextView loginInText;
     private SignInButton signInButton;
 
     @Override
@@ -51,7 +51,7 @@ public class LoginActivity extends AppCompatActivity {
 
         /* UI elements */
         progressBar = (ProgressBar) findViewById(R.id.progressBar);
-        lgonInText = (TextView) findViewById(R.id.loginIn);
+        loginInText = (TextView) findViewById(R.id.loginIn);
         signInButton = (SignInButton) findViewById(R.id.loginAsGoogle);
 
 
@@ -82,7 +82,7 @@ public class LoginActivity extends AppCompatActivity {
         /* Add action to button sign in */
         signInButton.setOnClickListener(v -> {
             progressBar.setVisibility(ProgressBar.VISIBLE);
-            lgonInText.setVisibility(TextView.VISIBLE);
+            loginInText.setVisibility(TextView.VISIBLE);
             signInButton.setVisibility(SignInButton.INVISIBLE);
             Intent signInIntent = Auth.GoogleSignInApi.getSignInIntent(googleApiClient);
             startActivityForResult(signInIntent, RC_SIGN_IN);
@@ -100,7 +100,7 @@ public class LoginActivity extends AppCompatActivity {
             } else {
                 Log.d(TAG, googleSignInResult.getStatus().toString());
                 progressBar.setVisibility(ProgressBar.INVISIBLE);
-                lgonInText.setVisibility(TextView.INVISIBLE);
+                loginInText.setVisibility(TextView.INVISIBLE);
                 signInButton.setVisibility(SignInButton.VISIBLE);
                 Toast.makeText(this, googleSignInResult.getStatus().getStatusMessage(), Toast.LENGTH_LONG).show();
             }
@@ -116,7 +116,7 @@ public class LoginActivity extends AppCompatActivity {
             }
 
             if (!task.isSuccessful()) {
-                Log.w(TAG, "signInWithCredential", task.getException());
+                Log.e(TAG, "signInWithCredential", task.getException());
                 Toast.makeText(getApplicationContext(), "Authentication failed.", Toast.LENGTH_SHORT).show();
             }
         });
@@ -127,42 +127,58 @@ public class LoginActivity extends AppCompatActivity {
         firebaseUser = firebaseAuth.getCurrentUser();
         assert firebaseUser != null;
 
-        userReference.child(firebaseUser.getUid())
-                .addListenerForSingleValueEvent(new ValueEventListener() {
-                    @Override
-                    public void onDataChange(DataSnapshot dataSnapshot) {
-                        if(dataSnapshot.exists()) {
-                            progressBar.setVisibility(ProgressBar.INVISIBLE);
-                            lgonInText.setVisibility(TextView.INVISIBLE);
-                            runMainActivity();
-                        } else {
-                            User user = new User();
-                            user.setUid(firebaseUser.getUid());
-                            user.setName(firebaseUser.getDisplayName());
-                            user.setEmail(firebaseUser.getEmail());
+        FirebaseUsers firebaseUsers = FirebaseUsers.getInstance();
 
-                            userReference.child(user.getUid()).setValue(user).addOnCompleteListener(task -> {
-                                progressBar.setVisibility(ProgressBar.INVISIBLE);
-                                lgonInText.setVisibility(TextView.INVISIBLE);
-                                runMainActivity();
-                            });
-                        }
+        firebaseUsers.loadUserStatic(firebaseUser.getUid(), new FirebaseLoadUserListener() {
+            @Override
+            public void onCompleteExist(User user) {
+                progressBar.setVisibility(ProgressBar.INVISIBLE);
+                loginInText.setVisibility(TextView.INVISIBLE);
+                runMainActivity();
+            }
+
+            @Override
+            public void OnCompleteNotExist() {
+                User user = new User();
+                user.setUid(firebaseUser.getUid());
+                user.setName(firebaseUser.getDisplayName());
+                user.setEmail(firebaseUser.getEmail());
+
+                firebaseUsers.addUser(user, new FirebaseAddUserListener() {
+                    @Override
+                    public void onComplete() {
+                        progressBar.setVisibility(ProgressBar.INVISIBLE);
+                        loginInText.setVisibility(TextView.INVISIBLE);
+                        runMainActivity();
                     }
 
                     @Override
-                    public void onCancelled(DatabaseError databaseError) {
-                        Toast.makeText(getApplicationContext(), "Add user to database failed.", Toast.LENGTH_SHORT).show();
-                        firebaseAuth.signOut();
-                        progressBar.setVisibility(ProgressBar.INVISIBLE);
-                        lgonInText.setVisibility(TextView.INVISIBLE);
-                        signInButton.setVisibility(SignInButton.VISIBLE);
+                    public void onError(String message) {
+                        errorAddUser(message);
                     }
                 });
+            }
 
+            @Override
+            public void onError(String message) {
+                errorAddUser(message);
+            }
+        });
     }
 
+    /* Start main activity */
     private void runMainActivity() {
         startActivity(new Intent(getApplicationContext(), MainActivity.class));
         finish();
+    }
+
+    /* Show login/register error and back to previews state */
+    private void errorAddUser(String message) {
+        Toast.makeText(getApplicationContext(), "Add user to database failed.", Toast.LENGTH_SHORT).show();
+        Log.e(TAG, message);
+        firebaseAuth.signOut();
+        progressBar.setVisibility(ProgressBar.INVISIBLE);
+        loginInText.setVisibility(TextView.INVISIBLE);
+        signInButton.setVisibility(SignInButton.VISIBLE);
     }
 }
